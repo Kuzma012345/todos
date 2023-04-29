@@ -42,7 +42,7 @@ function App() {
   async function handleCreateToDo() {
     try {
       const response = await axios.post('/api/to_dos', {
-        user_id: 1, // replace with actual user_id
+        user_id: 1,
         description,
       });
 
@@ -54,7 +54,7 @@ function App() {
 
   async function getToDos() {
     try {
-      const response = await axios.get('/api/to_dos/1'); // replace with actual user_id
+      const response = await axios.get('/api/to_dos/1');
 
       setToDos(response.data);
     } catch (error) {
