@@ -33,7 +33,7 @@ app.post('/api/users/register', async (req, res) => {
   }
 });
 
-app.post('/api/users/login', async (req, res) => {
+app.post('/api/users/login/to_dos', async (req, res) => {
   const { email, password } = req.body;
 
   try {
@@ -43,7 +43,10 @@ app.post('/api/users/login', async (req, res) => {
     ]);
 
     if (user.rowCount) {
-      res.json(user.rows[0]);
+      const userId = user.rows[0].id;
+      const tasks = await pool.query('SELECT * FROM to_dos WHERE user_id = $1', [userId]);
+
+      res.json({ userId, tasks: tasks.rows });
     } else {
       res.json({ message: 'Invalid credentials' });
     }
@@ -53,27 +56,25 @@ app.post('/api/users/login', async (req, res) => {
 });
 
 app.post('/api/to_dos', async (req, res) => {
-  const { user_id, description } = req.body;
+  const {  email, password,description } = req.body;
+      const user = await pool.query('SELECT * FROM users WHERE email = $1 AND password = $2', [
+      email,
+      password,
+    ]);
 
   try {
-    const newTodo = await pool.query(
-      'INSERT INTO to_dos (user_id, description) VALUES ($1, $2) RETURNING *',
-      [user_id, description],
-    );
+    if (user.rowCount) {
+      const userId = user.rows[0].id;
 
-    res.json(newTodo.rows[0]);
-  } catch (error) {
-    res.json({ error: error.message });
-  }
-});
+      const newTodo = await pool.query(
+          'INSERT INTO to_dos (user_id, description) VALUES ($1, $2) RETURNING *',
+          [userId, description],
+      );
+      res.json(newTodo.rows[0]);
+    }else {
+      res.json({ message: 'Invalid credentials' });
+    }
 
-app.get('/api/to_dos/:user_id', async (req, res) => {
-  const { user_id } = req.params;
-
-  try {
-    const toDos = await pool.query('SELECT * FROM to_dos WHERE user_id = $1', [user_id]);
-
-    res.json(toDos.rows);
   } catch (error) {
     res.json({ error: error.message });
   }
