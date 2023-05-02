@@ -92,3 +92,25 @@ app.get('/api/to_dos', async (req, res) => {
     res.json({ error: error.message });
   }
 });
+
+app.put('/api/to_dos/:id' , async (req, res) => {
+  const { description } = req.body;
+  const token = req.headers.cookie.split('=')[1];
+  if (!token) return res.status(401).send('Access denied. No token provided.');
+  const decoded = jwt.verify(token, SECRET_KEY);
+  const { userId } = decoded;
+
+  const toDos = await pool.query('SELECT * FROM to_dos WHERE user_id = $1 AND id = $2', [userId, req.params.id]);
+  console.log(toDos)
+  if (!toDos.rows[0]) return res.status(403).send('ToDos not found');
+
+  try {
+    const putTodo = await pool.query(
+      'UPDATE to_dos SET description = $1 WHERE id = $2 RETURNING *',
+        [description, req.params.id]
+    );
+    res.json(putTodo.rows[0]);
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
