@@ -2,6 +2,9 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const { Pool } = require('pg');
 
+const jwt = require('jsonwebtoken');
+const SECRET_KEY = 'your_secret_key';
+
 const pool = new Pool({
   user: 'postgres',
   host: 'localhost',
@@ -37,28 +40,36 @@ app.post('/api/users/login', async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    const user = await pool.query('SELECT * FROM users WHERE email = $1 AND password = $2', [
-      email,
-      password,
-    ]);
+    const user = await pool.query(
+      'SELECT * FROM users WHERE email = $1 AND password = $2',
+      [email, password]
+    );
 
-    if (user.rowCount) {
-      res.json(user.rows[0]);
-    } else {
-      res.json({ message: 'Invalid credentials' });
+    if (user.rows.length === 0) {
+      throw new Error('Invalid username or password');
     }
+
+    const token = jwt.sign({ userId: user.rows[0].id }, SECRET_KEY);
+
+    res.cookie('token', token, { maxAge: 7 * 24 * 60 * 60 * 1000, httpOnly: true });
+
+    res.json({ message: 'Login successful'});
   } catch (error) {
     res.json({ error: error.message });
   }
 });
 
 app.post('/api/to_dos', async (req, res) => {
-  const { user_id, description } = req.body;
+  const { description } = req.body;
+  const token = req.headers.cookie.split('=')[1];
+  if (!token) return res.status(401).send('Access denied. No token provided.');
+  const decoded = jwt.verify(token, SECRET_KEY);
+
 
   try {
     const newTodo = await pool.query(
       'INSERT INTO to_dos (user_id, description) VALUES ($1, $2) RETURNING *',
-      [user_id, description],
+      [decoded.userId, description],
     );
 
     res.json(newTodo.rows[0]);
@@ -67,11 +78,14 @@ app.post('/api/to_dos', async (req, res) => {
   }
 });
 
-app.get('/api/to_dos/:user_id', async (req, res) => {
-  const { user_id } = req.params;
-
+app.get('/api/to_dos', async (req, res) => {
   try {
-    const toDos = await pool.query('SELECT * FROM to_dos WHERE user_id = $1', [user_id]);
+    const token = req.headers.cookie.split('=')[1];
+    if (!token) return res.status(401).send('Access denied. No token provided.');
+    const decoded = jwt.verify(token, SECRET_KEY);
+    const { userId } = decoded;
+
+    const toDos = await pool.query('SELECT * FROM to_dos WHERE user_id = $1', [userId]);
 
     res.json(toDos.rows);
   } catch (error) {
